@@ -1,0 +1,65 @@
+name: Build mpeghdec (Windows EXE e Android NDK)
+
+# O workflow será ativado quando houver um push na branch principal ou manualmente
+on:
+  push:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
+
+jobs:
+  # ==========================================
+  # JOB 1: Compilar o .exe para Windows
+  # ==========================================
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar o CMake
+      run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+    - name: Compilar o projeto
+      run: cmake --build build --config Release
+
+    - name: Fazer Upload do .exe gerado
+      uses: actions/upload-artifact@v4
+      with:
+        name: mpeghdec-windows-exe
+        # O caminho de saída pode variar no CMake do Windows, 
+        # normalmente os binários vão para a pasta Release/
+        path: build/Release/*.exe
+
+  # ==========================================
+  # JOB 2: Compilar bibliotecas (.so) para Android
+  # ==========================================
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Instalar e configurar o Android NDK
+      uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r25c
+
+    - name: Configurar CMake para Android (ARM64)
+      run: |
+        cmake -S . -B build-android \
+        -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
+        -DANDROID_ABI=arm64-v8a \
+        -DANDROID_PLATFORM=android-21 \
+        -DCMAKE_BUILD_TYPE=Release
+
+    - name: Compilar para Android
+      run: cmake --build build-android --config Release
+
+    - name: Fazer Upload das bibliotecas Android geradas
+      uses: actions/upload-artifact@v4
+      with:
+        name: mpeghdec-android-libs
+        path: |
+          build-android/**/*.so
+          build-android/**/*.a
